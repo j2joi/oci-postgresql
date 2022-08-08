@@ -33,7 +33,7 @@
         - network_strategy
         - network_configuration_strategy
         - postgresql_vcn
-        - nat_gw_selected                    
+        - id_nat_gw_selected                    
         
     - title: "Network Optional Configuration"
       visible: #($network_strategy  == ""Use Existing VCN"") OR (network_configuration_strategy ==  "Customize Network Configuration")
@@ -52,7 +52,7 @@
 
 
     - title: "New Subnet Details Configuration"
-      visible: #($network_strategy  == ""Use Existing VCN"") AND (network_configuration_strategy ==  "Customize Network Configuration")
+      visible: #($network_strategy  == ""Use Existing VCN"") AND (show_advanced)
         and:
           - eq:
             - network_strategy
@@ -263,8 +263,9 @@
         required: true
         title: Existing VCN
         description: An existing Virtual Cloud Network (VCN) in which to create the compute instances, and network resources. If not specified, a new VCN is created.  
+        default: ""
 
-      nat_gw_selected:
+      id_nat_gw_selected:
         type: oci:core:natgateway:id
         dependsOn:
           compartmentId: network_compartment_ocid

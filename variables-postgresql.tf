@@ -8,7 +8,9 @@ variable "tenancy_ocid" {}
 variable "region" {}
 variable "compartment_ocid" {}
 variable "availablity_domain_name" {}
-variable "nat_gw_selected" {}
+variable "id_nat_gw_selected" {
+  default = ""
+}
 
 variable "use_existing_vcn" {
   default = false
@@ -172,6 +174,11 @@ variable "postgresql_hotstandby2_flex_shape_ocpus" {
 
 variable "postgresql_hotstandby2_flex_shape_memory" {
   default = 10
+}
+
+variable "network_strategy" {}
+variable "network_configuration_strategy" {
+  default = "Use Recommended Configuration"
 }
 
 # Dictionary Locals

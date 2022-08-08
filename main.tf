@@ -30,6 +30,7 @@ resource "random_string" "deploy_id" {
 }
 
 resource "oci_core_route_table" "postgress_rt" {
+  count = local.create_vcn? 0 : 1
   compartment_id = var.compartment_ocid
   vcn_id         = var.postgresql_vcn
   display_name   = "postgreSQLRT-${random_string.deploy_id.result}"
@@ -37,11 +38,12 @@ resource "oci_core_route_table" "postgress_rt" {
   route_rules {
     destination       = "0.0.0.0/0"
     destination_type  = "CIDR_BLOCK"
-    network_entity_id = var.nat_gw_selected
+    network_entity_id = var.id_nat_gw_selected
   }
 }
 
 resource "oci_core_security_list" "psql_securitylist" {
+  count = local.create_vcn? 0 : 1
   compartment_id = var.compartment_ocid
   vcn_id         = var.postgresql_vcn
   display_name   = "postgreSQL-seclist-${random_string.deploy_id.result}"
@@ -73,21 +75,23 @@ resource "oci_core_security_list" "psql_securitylist" {
 }
 
 locals {
-  vcn_cidr = element(data.oci_core_vcn.postgresql_vcn.cidr_blocks, 0)
+  create_vcn = var.network_strategy == "Create New VCN and Subnet" ? true : false
+  vcn_cidr = local.create_vcn? "":element(data.oci_core_vcn.postgresql_vcn[0].cidr_blocks, 0)
   # Future version may automate it.  Consider changing if clashes with existing subnet  this assume most examples use /24 and pick first 9 subnets ranges
-  new_subnet_cidr= var.postgresql_subnet_cidr != "" ? var.postgresql_subnet_cidr : cidrsubnets(local.vcn_cidr,8, 8, 8, 8, 8, 8, 8, 8,12 )[8]
+  new_subnet_cidr= var.postgresql_subnet_cidr != "" ? var.postgresql_subnet_cidr : local.vcn_cidr==""?"":cidrsubnets(local.vcn_cidr,8, 8, 8, 8, 8, 8, 8, 8,12 )[8]    
 }
 
 
 resource "oci_core_subnet" "postgreSQL_subnet" {
+  count = local.create_vcn? 0 : 1
   cidr_block                 = local.new_subnet_cidr
   display_name               = "postgreSQL-Subnet-${random_string.deploy_id.result}"
   dns_label                  = "pstsqlsn${random_string.deploy_id.result}"
-  security_list_ids          = [oci_core_security_list.psql_securitylist.id]
+  security_list_ids          = [oci_core_security_list.psql_securitylist[0].id]
   compartment_id             = var.compartment_ocid
   vcn_id                     = var.postgresql_vcn
-  route_table_id             = oci_core_route_table.postgress_rt.id
-  dhcp_options_id            = data.oci_core_vcn.postgresql_vcn.default_dhcp_options_id
+  route_table_id             = oci_core_route_table.postgress_rt[0].id
+  dhcp_options_id            = data.oci_core_vcn.postgresql_vcn[0].default_dhcp_options_id
   prohibit_public_ip_on_vnic = true
 }
 
@@ -96,10 +100,10 @@ module "arch-postgresql" {
   tenancy_ocid             = var.tenancy_ocid
   availablity_domain_name  = var.availablity_domain_name
   compartment_ocid         = var.compartment_ocid
-  use_existing_vcn         = true                               # usage of the external existing VCN
+  use_existing_vcn         = local.create_vcn?false:true                               # usage of the external existing VCN
   create_in_private_subnet = true                               # usage of the private subnet
   postgresql_vcn           = var.postgresql_vcn # injecting myVCN
-  postgresql_subnet        = oci_core_subnet.postgreSQL_subnet.id       # injecting private mySubnet 
+  postgresql_subnet        = local.create_vcn? "":oci_core_subnet.postgreSQL_subnet[0].id       # injecting private mySubnet 
   postgresql_password      = var.postgresql_password
   add_iscsi_volume         = var.add_iscsi_volume # adding iSCSI volume...
   iscsi_volume_size_in_gbs = var.iscsi_volume_size_in_gbs  # ... with 200 GB of size
@@ -136,6 +140,10 @@ output "postgresql_master_session_private_ip" {
 
 output "bastion_ssh_postgresql_master_session_metadata" {
   value = module.arch-postgresql.bastion_ssh_postgresql_master_session_metadata
+}
+
+output "use_existing_vcn" {
+  value = local.create_vcn
 }
 
 # output "install_bits_rendered" {
